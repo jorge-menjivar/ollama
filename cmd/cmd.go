@@ -498,10 +498,12 @@ func generate(cmd *cobra.Command, opts generateOptions) error {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
+	var canceled bool
 
 	go func() {
 		<-sigChan
 		cancel()
+		canceled = true
 	}()
 
 	var currentLineLength int
@@ -550,19 +552,25 @@ func generate(cmd *cobra.Command, opts generateOptions) error {
 		Options:  opts.Options,
 	}
 
-	if err := client.Generate(ctx, &request, fn); err != nil {
-		if errors.Is(err, context.Canceled) {
-			return nil
-		}
+	err = client.Generate(ctx, &request, fn)
+	switch {
+	// canceled during initial request, _not_ during streaming
+	case errors.Is(err, context.Canceled):
+		return nil
+	case err != nil:
 		return err
 	}
+
 	if opts.Prompt != "" {
 		fmt.Println()
 		fmt.Println()
 	}
 
-	if !latest.Done {
+	if canceled {
+		// canceled during streaming
 		return nil
+	} else if !latest.Done {
+		return errors.New("unexpected end of response")
 	}
 
 	verbose, err := cmd.Flags().GetBool("verbose")
