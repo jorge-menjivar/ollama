@@ -343,6 +343,27 @@ func ChatHandler(c *gin.Context) {
 		return
 	}
 
+	ch, generated := chat(c, req, checkpointStart)
+
+	if req.Stream != nil && !*req.Stream {
+		// Wait for the channel to close
+		var r api.ChatResponse
+		for resp := range ch {
+			var ok bool
+			if r, ok = resp.(api.ChatResponse); !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+		}
+		r.Message = &api.Message{Role: "assistant", Content: generated.String()}
+		c.JSON(http.StatusOK, r)
+		return
+	}
+
+	streamResponse(c, ch)
+}
+
+func chat(c *gin.Context, req api.ChatRequest, checkpointStart time.Time) (chan any, *strings.Builder) {
 	sessionDuration := defaultSessionDuration
 	model, err := load(c, req.Model, req.Options, sessionDuration)
 	if err != nil {
@@ -355,13 +376,13 @@ func ChatHandler(c *gin.Context) {
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
-		return
+		return nil, nil
 	}
 
 	// an empty request loads the model
 	if len(req.Messages) == 0 {
 		c.JSON(http.StatusOK, api.ChatResponse{CreatedAt: time.Now().UTC(), Model: req.Model, Done: true})
-		return
+		return nil, nil
 	}
 
 	checkpointLoaded := time.Now()
@@ -373,7 +394,7 @@ func ChatHandler(c *gin.Context) {
 	prompt, err := model.ChatPrompt(req.Messages)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		return nil, nil
 	}
 
 	ch := make(chan any)
@@ -427,22 +448,7 @@ func ChatHandler(c *gin.Context) {
 		}
 	}()
 
-	if req.Stream != nil && !*req.Stream {
-		// Wait for the channel to close
-		var r api.ChatResponse
-		for resp := range ch {
-			var ok bool
-			if r, ok = resp.(api.ChatResponse); !ok {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-		}
-		r.Message = &api.Message{Role: "assistant", Content: generated.String()}
-		c.JSON(http.StatusOK, r)
-		return
-	}
-
-	streamResponse(c, ch)
+	return ch, &generated
 }
 
 func EmbeddingHandler(c *gin.Context) {
@@ -963,6 +969,9 @@ func Serve(ln net.Listener, allowOrigins []string) error {
 	r.POST("/api/show", ShowModelHandler)
 	r.POST("/api/blobs/:digest", CreateBlobHandler)
 	r.HEAD("/api/blobs/:digest", HeadBlobHandler)
+
+	// openai compatible endpoints
+	r.POST("/openai/v1/chat/completions", ChatCompletions)
 
 	for _, method := range []string{http.MethodGet, http.MethodHead} {
 		r.Handle(method, "/", func(c *gin.Context) {
