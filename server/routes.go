@@ -212,7 +212,12 @@ func GenerateHandler(c *gin.Context) {
 		defer close(ch)
 		// an empty request loads the model
 		if req.Prompt == "" && req.Template == "" && req.System == "" {
-			ch <- api.GenerateResponse{CreatedAt: time.Now().UTC(), Model: req.Model, Done: true}
+			ch <- api.GenerateResponse{
+				CreatedAt:          time.Now().UTC(),
+				Model:              req.Model,
+				ModelConfiguration: model.Config.ModelConfiguration,
+				Done:               true,
+			}
 			return
 		}
 
@@ -221,6 +226,7 @@ func GenerateHandler(c *gin.Context) {
 			loaded.expireTimer.Reset(sessionDuration)
 
 			r.Model = req.Model
+			r.ModelConfiguration = model.Config.ModelConfiguration
 			r.CreatedAt = time.Now().UTC()
 			if r.Done {
 				r.TotalDuration = time.Since(checkpointStart)

@@ -170,6 +170,8 @@ type GenerateResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 	Response  string    `json:"response"`
 
+	ModelConfiguration ModelConfiguration `json:"model_configuration"`
+
 	Done    bool  `json:"done"`
 	Context []int `json:"context,omitempty"`
 
@@ -179,6 +181,14 @@ type GenerateResponse struct {
 	PromptEvalDuration time.Duration `json:"prompt_eval_duration,omitempty"`
 	EvalCount          int           `json:"eval_count,omitempty"`
 	EvalDuration       time.Duration `json:"eval_duration,omitempty"`
+}
+
+type ModelConfiguration struct {
+	ModelFormat   string   `json:"model_format"`
+	ModelFamily   string   `json:"model_family"`
+	ModelFamilies []string `json:"model_families"`
+	ModelType     string   `json:"model_type"`
+	FileType      string   `json:"file_type"`
 }
 
 func (r *GenerateResponse) Summary() {
