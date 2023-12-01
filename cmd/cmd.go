@@ -1035,8 +1035,6 @@ func checkServerHeartbeat(cmd *cobra.Command, _ []string) error {
 }
 
 func versionHandler(cmd *cobra.Command, _ []string) {
-	fmt.Printf("ollama version %s\n", version.Version)
-
 	client, err := api.ClientFromEnvironment()
 	if err != nil {
 		return
@@ -1044,11 +1042,15 @@ func versionHandler(cmd *cobra.Command, _ []string) {
 
 	serverVersion, err := client.Version(cmd.Context())
 	if err != nil {
-		return
+		fmt.Println("Warning: Your server is not accessible")
+	}
+
+	if serverVersion != "" {
+		fmt.Printf("Your ollama version %s\n", serverVersion)
 	}
 
 	if serverVersion != version.Version {
-		fmt.Printf("ollama host version %s\n", serverVersion)
+		fmt.Printf("Warning: Your client version is %s\n", version.Version)
 	}
 }
 
@@ -1064,7 +1066,6 @@ func NewCLI() *cobra.Command {
 		CompletionOptions: cobra.CompletionOptions{
 			DisableDefaultCmd: true,
 		},
-		Version: version.Version,
 		Run: func(cmd *cobra.Command, args []string) {
 			if version, _ := cmd.Flags().GetBool("version"); version {
 				versionHandler(cmd, args)
